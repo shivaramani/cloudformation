@@ -23,20 +23,6 @@ Outputs:
 Parameters:
   Environment:
     Type: String
-  HashKeyElementName:
-    AllowedPattern: '[a-zA-Z0-9]'
-    ConstraintDescription: Should be A-Z and 0-9
-    Description: Name for the column
-    MaxLength: '2048'
-    MinLength: '1'
-    Type: String
-  HashKeyElementType:
-    AllowedPattern: '[S|N]'
-    ConstraintDescription: Should be a string or numeric
-    Description: Type for the column
-    MaxLength: '32'
-    MinLength: '1'
-    Type: String
 Resources:
   BucketPolicy:
     Properties:
@@ -61,9 +47,9 @@ Resources:
       DefinitionBody:
         info:
           title:
-            ref: AWS::StackName
+            Ref: AWS::StackName
         paths:
-          /dev:
+          /test:
             get:
               responses: {}
               x-amazon-apigateway-integration:
@@ -72,56 +58,42 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ClickLoggerLambda.Arn}/invocations
         swagger: 2.0
+      StageName:
+        Fn::Sub: ${Environment}
     Type: AWS::Serverless::Api
   ClickLoggerLambda:
     Properties:
       CodeUri: s3://clicklogger-dev/fb4f14efaaf1c5a8bd5a188be3246ad3
+      Environment:
+        Variables:
+          MyTableName:
+            Ref: ClickLoggerTable
+      Events:
+        MyEndpoint:
+          Properties:
+            Method: get
+            Path: /test
+            RestApiId:
+              Ref: ClickLoggerAPI
+          Type: Api
       Handler: sample.lambda_handler
       MemorySize: 128
       Policies:
-      - AWSLambdaBasicExecutionRold
+      - AWSLambdaBasicExecutionRole
       - AmazonDynamoDBFullAccess
-      Role:
-        Fn::GetAtt:
-        - LambdaExecutionRole
-        - Arn
       Runtime: Python3.7
       Timeout: 30
     Type: AWS::Serverless::Function
   ClickLoggerTable:
     Properties:
-      AttributeDefinition:
-        AttributeName:
-          Ref: HashKeyElementName
-        AttributeType:
-          Ref: HashKeyElementType
+      PrimaryKey:
+        Name: correlationid
+        Type: String
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
-      TableName: clicklogger-dev
+      TableName: clickloggerlambda-dev
     Type: AWS::Serverless::SimpleTable
-  LambdaExecutionRole:
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-        - Action:
-          - sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-        Version: '2012-10-17'
-      Path: /
-      Policies:
-      - PolicyDocument:
-          Statement:
-          - Action:
-            - logs:*
-            Effect: Allow
-            Resource: arn:aws:logs:*:*:*
-          Version: '2012-10-17'
-        PolicyName: root
-    Type: AWS::IAM::Role
   S3Bucket:
     DeletionPolicy: Delete
     Properties:

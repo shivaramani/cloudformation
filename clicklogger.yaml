@@ -1,28 +1,14 @@
 
-# aws cloudformation create-stack --stack-name clickloggeralsd --template-body file://clicklogger.yaml --capabilities CAPABILITY_IAM  
+# this is using Serverless Application Model - SAM
 # aws s3 mb s3://clicklogger-dev
 # aws cloudformation package --template-file clicklogger.yaml --output-template-file outputclicklogger.yaml --s3-bucket clicklogger-dev
-# aws cloudformation deploy  --template-file outputclicklogger.yaml  --stack-name clickloggeralsd  --capabilities CAPABILITY_IAM 
+# aws cloudformation deploy  --template-file outputclicklogger.yaml  --stack-name clickloggersam --capabilities CAPABILITY_IAM --parameter-overrides Environment=dev
 
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
   Environment:
     Type: String
-  HashKeyElementName: 
-    Description: Name for the column
-    Type: String
-    MinLength: '1'
-    MaxLength: '2048'
-    AllowedPattern: '[a-zA-Z0-9]'
-    ConstraintDescription: Should be A-Z and 0-9
-  HashKeyElementType:
-    Description: Type for the column
-    Type: String
-    MinLength: '1'
-    MaxLength: '32'
-    AllowedPattern: '[S|N]'
-    ConstraintDescription: Should be a string or numeric
-
+  
 Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
@@ -43,7 +29,7 @@ Resources:
           - - Sid: ReadBucketS3Group
             - Principal: '*'
             - Effect: Allow
-            - Action: 's3:GetObject'
+            - Action: s3:GetObject
             - Resource: !Join
                 - ''
                 - - 'arn:aws:s3:::'
@@ -52,54 +38,28 @@ Resources:
       Bucket: !Ref S3Bucket
 
   ClickLoggerTable:
-    #Type: AWS::DynamoDB::Table
     Type: AWS::Serverless::SimpleTable
     Properties:
-      TableName: clicklogger-dev
-      #KeySchema:
-        #AttributeName: correlationid
-        #KeyType: HASH
-      #PrimaryKey:
-      #  Name: correlationid
-      #  Type: String
-      AttributeDefinition:
-        AttributeName: !Ref HashKeyElementName
-        AttributeType: !Ref HashKeyElementType
+      TableName: clickloggerlambda-dev
+      PrimaryKey:
+        Name: correlationid
+        Type: String
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
 
-  ClickLoggerLambda:
-    #Type: AWS::Lambda::Function
-    Type: AWS::Serverless::Function
-    Properties:
-      Runtime: Python3.7
-      CodeUri: src
-      Handler: sample.lambda_handler
-      #CodeUri: s3://clicklogger-dev/fb4f14efaaf1c5a8bd5a188be3246ad3
-      #Handler: sample.lambda_handler
-      MemorySize: 128
-      Timeout: 30
-      Role: 
-        Fn::GetAtt: 
-          - "LambdaExecutionRole"
-          - "Arn"
-      Policies:
-        - AWSLambdaBasicExecutionRold
-        - AmazonDynamoDBFullAccess
-
   ClickLoggerAPI:
-    #Type: AWS::ApiGateway::RestApi
     Type: AWS::Serverless::Api
     Properties:
+      StageName: !Sub ${Environment}
       #Body:
       DefinitionBody:
         swagger: 2.0
         info:
           title:
-            ref: AWS::StackName
+            Ref: AWS::StackName
         paths:
-          /dev:
+          /test:
             get: 
               x-amazon-apigateway-integration:
                 httpMethod: POST
@@ -107,30 +67,29 @@ Resources:
                 uri:
                   !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ClickLoggerLambda.Arn}/invocations
               responses: {}
-
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
+  ClickLoggerLambda:
+    Type: AWS::Serverless::Function
     Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action:
-          - sts:AssumeRole
-      Path: "/"
+      Runtime: Python3.7
+      CodeUri: src
+      Handler: sample.lambda_handler
+      MemorySize: 128
+      Timeout: 30
       Policies:
-      - PolicyName: root
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-          - Effect: Allow
-            Action:
-            - logs:*
-            Resource: arn:aws:logs:*:*:*
-
+        - AWSLambdaBasicExecutionRole
+        - AmazonDynamoDBFullAccess
+      Events:
+        MyEndpoint:
+          Type: Api 
+          Properties:
+            Path: /test
+            Method: get
+            RestApiId:
+              Ref: ClickLoggerAPI
+      Environment:
+        Variables:
+          MyTableName: !Ref ClickLoggerTable
+  
 Outputs:
   WebsiteURL:
     Value: !GetAtt
