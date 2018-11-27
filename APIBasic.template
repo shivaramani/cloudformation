@@ -1,0 +1,12 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources: 
+    ClickLoggerAPI: 
+        Type: AWS::ApiGateway::RestApi
+        Properties:
+            Name: clickloggerapi
+            Body: 
+                swagger: 2.0
+                info: 
+                    version: 0.0.1
+                    title: ClickLoggerAPI
+                basePath: /clicklogger

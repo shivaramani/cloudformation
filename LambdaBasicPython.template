@@ -1,0 +1,14 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+    SampleLambda:
+        Type: AWS::Serverless::Function
+        Properties:
+            Handler: sample.lambda_handler
+            Runtime: python2.7 
+            CodeUri: src 
+            MemorySize: 128 
+            Timeout: 30
+            Policies:
+                - AWSLambdaBasicExecutionRole
+                - AmazonDynamoDBFullAccess  
+              
