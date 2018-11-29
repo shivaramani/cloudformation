@@ -1,66 +1,24 @@
-
-# this is using Serverless Application Model - SAM
-# aws s3 mb s3://clicklogger-dev
-# aws cloudformation package --template-file clicklogger.yaml --output-template-file outputclicklogger.yaml --s3-bucket clicklogger-dev
-# aws cloudformation deploy  --template-file outputclicklogger.yaml  --stack-name clickloggersam --capabilities CAPABILITY_IAM --parameter-overrides Environment=dev
-
 AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: AWS SAM Tutorial
 Parameters:
   Environment:
     Type: String
-  
 Resources:
-  S3Bucket:
-    Type: AWS::S3::Bucket
-    Properties: 
-      BucketName: clicklogger-dev1
-      AccessControl: PublicRead
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: error.html
-    DeletionPolicy: Delete
-
-  BucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      PolicyDocument:
-        Id: MyPolicy
-        Statement:
-          - - Sid: ReadBucketS3Group
-            - Principal: '*'
-            - Effect: Allow
-            - Action: s3:GetObject
-            - Resource: !Join
-                - ''
-                - - 'arn:aws:s3:::'
-                  - !Ref S3Bucket
-                  - /*
-      Bucket: !Ref S3Bucket
-
-  ClickLoggerTable:
-    Type: AWS::Serverless::SimpleTable
-    Properties:
-      TableName: clickloggerlambda-dev
-      PrimaryKey:
-        Name: correlationid
-        Type: String
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
-
   ClickLoggerAPI:
     Type: AWS::Serverless::Api
     Properties:
       StageName: !Sub ${Environment}
-      #Body:
       DefinitionBody:
         swagger: 2.0
         info:
           title:
             Ref: AWS::StackName
+        x-amazon-apigateway-binary-media-types:
+          - '*/*'
         paths:
           /test:
-            get: 
+            get:
               x-amazon-apigateway-integration:
                 httpMethod: POST
                 type: aws_proxy
@@ -70,14 +28,15 @@ Resources:
   ClickLoggerLambda:
     Type: AWS::Serverless::Function
     Properties:
-      Runtime: Python3.7
-      CodeUri: src
-      Handler: sample.lambda_handler
-      MemorySize: 128
+      FunctionName: !Sub ClickLoggerLambda-${Environment}
+      Handler: index.lambda_handler
+      Runtime: python2.7 
+      CodeUri: src 
+      MemorySize: 128 
       Timeout: 30
       Policies:
         - AWSLambdaBasicExecutionRole
-        - AmazonDynamoDBFullAccess
+        - AmazonDynamoDBFullAccess  
       Events:
         MyEndpoint:
           Type: Api 
@@ -89,13 +48,46 @@ Resources:
       Environment:
         Variables:
           MyTableName: !Ref ClickLoggerTable
-  
+  ClickLoggerTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: ClickLoggerLambdaTable
+      PrimaryKey:
+        Name: name
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: s3-clicklogger
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref S3Bucket
+                - /*
+      Bucket: !Ref S3Bucket
 Outputs:
   WebsiteURL:
-    Value: !GetAtt
-      - S3Bucket
-      - WebsiteURL
-    Description: Bucket description
+    Value: !GetAtt S3Bucket.WebsiteURL
+    Description: URL for website hosted on S3
+  ApiGWURL:
+    Value: !Sub https://${ClickLoggerAPI}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/test
+    Description: API Gateway endpoint for clic stream
   S3BucketSecureURL:
     Value: !Join
       - ''
@@ -106,6 +98,3 @@ Outputs:
     Description: Secure bucket description
   LambdaTable:
     Value: !Ref ClickLoggerTable
-  
-  APIGWURL:
-    Value: https://${ClickLoggerAPI}.execute-api.${AWS::Region}.amazonaws.com/dev/dev

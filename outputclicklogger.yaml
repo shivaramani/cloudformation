@@ -58,6 +58,8 @@ Resources:
                 uri:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ClickLoggerLambda.Arn}/invocations
         swagger: 2.0
+        x-amazon-apigateway-binary-media-types:
+        - '*/*'
       StageName:
         Fn::Sub: ${Environment}
     Type: AWS::Serverless::Api
@@ -81,7 +83,7 @@ Resources:
       Policies:
       - AWSLambdaBasicExecutionRole
       - AmazonDynamoDBFullAccess
-      Runtime: Python3.7
+      Runtime: python2.7
       Timeout: 30
     Type: AWS::Serverless::Function
   ClickLoggerTable:
